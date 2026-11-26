@@ -154,7 +154,7 @@ gcloud run deploy urban-air-assistant \
 1. **Location Data**: User provides city name or lat/lon; app does not store location history
 2. **Health Data**: Vulnerability groups (children, elderly, respiratory, cardiac) are user-selected, not auto-detected
 3. **Air Quality API**: Open-Meteo remains free and accessible; fallback to cached data if unavailable
-4. **Gemini Availability**: API key valid; model is `gemini-2.5-flash` or similar; fallback template used if key fails
+4. **Gemini Availability**: API key valid; model comes from `GEMINI_MODEL` (default `gemini-3.1-flash-lite`); fallback template used if key fails
 5. **Indian Cities**: AQI guidance targets major Indian cities; emission factors are regional
 6. **No Real-Time Health Monitoring**: App provides guidance only; not a medical device
 

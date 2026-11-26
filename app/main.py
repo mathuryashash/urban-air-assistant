@@ -14,6 +14,7 @@ import os
 from datetime import datetime
 
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -21,12 +22,17 @@ from pydantic import BaseModel, Field, field_validator
 
 from app import aqi, core, gemini
 
+# Local runs read GEMINI_API_KEY from .env; on Cloud Run it comes from Secret Manager.
+load_dotenv()
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+# httpx logs every request URL at INFO; keep it quiet so upstream URLs stay out of the logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(
     title="Urban Air Quality Assistant",
@@ -52,9 +58,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers[
-        "Content-Security-Policy"
-    ] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com"
+    )
     return response
 
 
@@ -107,7 +113,7 @@ class AdviceRequest(BaseModel):
     longitude: float | None = Field(None, ge=-180, le=180)
     vulnerable_groups: list[str] = Field(
         default_factory=list
-    )  # 'children', 'elderly', 'respiratory', 'cardiac'
+    )  # 'children', 'elderly', 'respiratory_conditions', 'cardiac_conditions'
     commute_mode: str = Field(default="car", pattern="^(car|public_transit|cycle|walk)$")
     outdoor_habits: str = Field(default="moderate", pattern="^(low|moderate|high)$")
     cooking_fuel: str = Field(default="lpg", pattern="^(lpg|induction|wood|charcoal)$")
@@ -271,6 +277,7 @@ async def get_advice(request: AdviceRequest):
         vulnerable_groups=request.vulnerable_groups,
         impact_data=impact_data,
         api_key=gemini_key,
+        activity_window=best_window,
     )
 
     return AdviceResponse(

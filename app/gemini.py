@@ -5,13 +5,19 @@ Handles prompt construction, API calls, response parsing, and fallback templates
 Input to Gemini is always structured JSON (no free-form user text).
 """
 
+import asyncio
 import json
 import logging
+import os
 
 import httpx
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+# Model is configurable because Gemini model names change; this default was tested on 26 Nov 2026.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
 class RoutineAdvice(BaseModel):
@@ -149,6 +155,7 @@ async def generate_routine_with_gemini(
     vulnerable_groups: list[str],
     impact_data: dict,
     api_key: str | None = None,
+    activity_window: dict | None = None,
 ) -> RoutineAdvice:
     """
     Generate personalized guidance using Google Gemini API.
@@ -160,6 +167,7 @@ async def generate_routine_with_gemini(
         vulnerable_groups: List of vulnerable household members
         impact_data: Quantified impact of behavior changes
         api_key: Gemini API key; if None, returns fallback
+        activity_window: Best and avoid hours computed by core.find_best_activity_window
 
     Returns:
         RoutineAdvice structured output
@@ -178,6 +186,7 @@ async def generate_routine_with_gemini(
         "lifestyle": lifestyle,
         "vulnerable_groups": vulnerable_groups,
         "impact_estimates": impact_data,
+        "activity_window": activity_window or {},
     }
 
     system_message = """You are an expert in air quality health guidance for Indian families during winter smog.
@@ -197,7 +206,10 @@ CRITICAL INSTRUCTIONS:
 }
 - Cite emission factors and health thresholds when quantifying impact.
 - If a vulnerable group is present, emphasize their specific risks and mitigations.
-- Recommend low-pollution time windows and outdoor alternatives based on the data provided.
+- For timing, use ONLY the hours in activity_window (best_hour, avoid_windows; local time).
+  Never suggest other times of day.
+- Mention only PM2.5 and PM10. Do not bring up pollutants that are not in the data.
+- Never change or invent numbers; reuse the numbers given in the data.
 - Keep language accessible to a general Indian family (avoid jargon).
 """
 
@@ -208,27 +220,34 @@ CRITICAL INSTRUCTIONS:
 Respond with ONLY valid JSON, no markdown, no explanation."""
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Google Gemini API call
-            response = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-                params={"key": api_key},
-                json={
-                    "contents": [
-                        {
-                            "role": "user",
-                            "parts": [{"text": user_message}],
-                        }
-                    ],
-                    "system_instruction": {"parts": [{"text": system_message}]},
-                    "generationConfig": {
-                        "temperature": 0.7,
-                        "top_p": 0.95,
-                        "max_output_tokens": 1024,
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # Google Gemini API call. The key goes in a header, not the URL, so it never
+            # shows up in request logs. Retry once on 429/5xx: Gemini returns 503 under load.
+            for attempt in range(2):
+                response = await client.post(
+                    GEMINI_URL.format(model=GEMINI_MODEL),
+                    json={
+                        "contents": [
+                            {
+                                "role": "user",
+                                "parts": [{"text": user_message}],
+                            }
+                        ],
+                        "system_instruction": {"parts": [{"text": system_message}]},
+                        "generationConfig": {
+                            "temperature": 0.7,
+                            "top_p": 0.95,
+                            "max_output_tokens": 1024,
+                            "response_mime_type": "application/json",
+                        },
                     },
-                },
-                headers={"Content-Type": "application/json"},
-            )
+                    headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+                )
+                if response.status_code in (429, 500, 502, 503, 504) and attempt == 0:
+                    logger.warning(f"Gemini returned {response.status_code}; retrying once")
+                    await asyncio.sleep(1.5)
+                    continue
+                break
             response.raise_for_status()
             data = response.json()
 
