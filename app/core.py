@@ -124,7 +124,7 @@ def find_best_activity_window(hourly_forecast: list[dict], activity_type: Activi
     """
     Find the optimal time window (next 24h) for outdoor activity, commute, or ventilation.
 
-    Forecast structure: [{"pm25": float, "hour": int (0-23 UTC)}, ...]
+    Forecast structure: [{"pm25": float, "hour": int (0-23, local time)}, ...]
 
     Args:
         hourly_forecast: List of hourly forecasts with pm25 and hour
@@ -176,7 +176,7 @@ def find_best_activity_window(hourly_forecast: list[dict], activity_type: Activi
     # Identify windows to avoid (above threshold or very high)
     avoid_windows = []
     current_avoid = None
-    for h in sorted(hourly_forecast, key=lambda x: x.get("hour", 0)):
+    for h in hourly_forecast:  # chronological order, next 24 hours
         hour = h.get("hour", 0)
         pm25 = h.get("pm25", 0)
         is_bad = pm25 > threshold
@@ -188,7 +188,8 @@ def find_best_activity_window(hourly_forecast: list[dict], activity_type: Activi
             current_avoid = None
 
     if current_avoid:
-        current_avoid["end_hour"] = 23
+        last_hour = hourly_forecast[-1].get("hour", 23)
+        current_avoid["end_hour"] = (last_hour + 1) % 24
         avoid_windows.append(current_avoid)
 
     for w in avoid_windows:
@@ -204,12 +205,12 @@ def find_best_activity_window(hourly_forecast: list[dict], activity_type: Activi
     rationale = ""
     if suitable_hours:
         rationale = (
-            f"Hour {best_hour}:00 UTC has the lowest PM2.5 ({best_pm25:.1f} µg/m³, "
+            f"Hour {best_hour}:00 (local time) has the lowest PM2.5 ({best_pm25:.1f} µg/m³, "
             f"{best_band} band) in the next 24h."
         )
     else:
         rationale = (
-            f"All hours have elevated pollution. Hour {best_hour}:00 UTC is the best "
+            f"All hours have elevated pollution. Hour {best_hour}:00 (local time) is the best "
             f"available option ({best_pm25:.1f} µg/m³)."
         )
 
