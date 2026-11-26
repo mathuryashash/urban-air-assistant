@@ -344,6 +344,57 @@ class TestGeocoding:
 
     @pytest.mark.asyncio
     @patch("app.aqi.httpx.AsyncClient")
+    async def test_fetch_air_quality_skips_null_hours(self, mock_client_class):
+        """Hours where Open-Meteo returns null are skipped, not read as clean air."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "current": {"pm2_5": 180.0, "pm10": 260.0, "us_aqi": 230.0, "time": "2026-11-26T12:00"},
+            "hourly": {
+                "time": ["2026-11-26T12:00", "2026-11-26T13:00", "2026-11-26T14:00"],
+                "pm2_5": [180.0, None, 150.0],
+                "pm10": [260.0, 240.0, None],
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        aqi.clear_cache()
+        result = await aqi.fetch_air_quality(28.7, 77.1)
+        assert result is not None
+        _, hourly = result
+        assert [h.pm25 for h in hourly] == [180.0]
+
+    @pytest.mark.asyncio
+    @patch("app.aqi.httpx.AsyncClient")
+    async def test_fetch_air_quality_keeps_next_24_local_hours(self, mock_client_class):
+        """Only the next 24 hours from the current local hour are kept, in order."""
+        times = [f"2026-11-26T{h:02d}:00" for h in range(20, 24)] + [
+            f"2026-11-27T{h:02d}:00" for h in range(24)
+        ]
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "current": {"pm2_5": 90.0, "pm10": 120.0, "us_aqi": 170.0, "time": "2026-11-26T22:15"},
+            "hourly": {"time": times, "pm2_5": [50.0] * len(times), "pm10": [70.0] * len(times)},
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        aqi.clear_cache()
+        result = await aqi.fetch_air_quality(12.97, 77.59)
+        assert result is not None
+        _, hourly = result
+        assert len(hourly) == 24
+        assert [h.hour for h in hourly[:3]] == [22, 23, 0]
+        assert hourly[-1].hour == 21
+
+    @pytest.mark.asyncio
+    @patch("app.aqi.httpx.AsyncClient")
     async def test_fetch_air_quality_network_error(self, mock_client_class):
         """Handle network error during air quality fetch."""
         mock_client = MagicMock()

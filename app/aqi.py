@@ -45,7 +45,7 @@ class AirQualityData(BaseModel):
 class HourlyForecast(BaseModel):
     """Hourly forecast for air quality."""
 
-    hour: int = Field(..., description="Hour 0–23 UTC")
+    hour: int = Field(..., description="Hour 0–23, local time of the location")
     pm25: float = Field(..., description="PM2.5 µg/m³")
     pm10: float = Field(..., description="PM10 µg/m³")
 
@@ -128,10 +128,12 @@ async def fetch_air_quality(
             "latitude": latitude,
             "longitude": longitude,
             "current": "pm2_5,pm10,us_aqi,european_aqi",
+            # Times come back in the location's own timezone, so "best hour" is local.
+            "timezone": "auto",
         }
         if include_hourly:
             params["hourly"] = "pm2_5,pm10"
-            params["forecast_days"] = 7
+            params["forecast_days"] = 2
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(OPEN_METEO_AQ_URL, params=params)
@@ -154,12 +156,30 @@ async def fetch_air_quality(
             pm25_list = hourly.get("pm2_5", [])
             pm10_list = hourly.get("pm10", [])
 
-            for i, time_str in enumerate(times[:168]):  # 7 days * 24 hours
+            # Keep only the next 24 hours, starting at the current local hour,
+            # in chronological order.
+            now_str = current.get("time")
+            start = (
+                datetime.fromisoformat(now_str.replace("Z", "+00:00")).replace(
+                    minute=0, tzinfo=None
+                )
+                if now_str
+                else None
+            )
+            for i, time_str in enumerate(times):
                 try:
                     dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+                    if start is not None and not (
+                        start <= dt.replace(tzinfo=None) < start + timedelta(hours=24)
+                    ):
+                        continue
                     hour = dt.hour
-                    pm25 = pm25_list[i] if i < len(pm25_list) else 0.0
-                    pm10 = pm10_list[i] if i < len(pm10_list) else 0.0
+                    pm25 = pm25_list[i] if i < len(pm25_list) else None
+                    pm10 = pm10_list[i] if i < len(pm10_list) else None
+                    if pm25 is None or pm10 is None:
+                        # Open-Meteo returns null for hours it has no model data for.
+                        # Skip them: treating a gap as 0 would report clean air.
+                        continue
                     hourly_forecasts.append(
                         HourlyForecast(hour=hour, pm25=max(pm25, 0), pm10=max(pm10, 0))
                     )
