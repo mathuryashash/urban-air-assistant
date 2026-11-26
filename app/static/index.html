@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Urban Air Quality Assistant: AI-powered guidance for families navigating winter smog and urban air pollution in India">
+    <title>Urban Air Quality Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-bg: #ffffff;
+            --color-text: #1a1a1a;
+            --color-border: #d0d0d0;
+            --color-good: #2ecc71;
+            --color-moderate: #f39c12;
+            --color-sensitive: #e74c3c;
+            --color-unhealthy: #9b59b6;
+            --color-hazardous: #34495e;
+            --color-focus: #3498db;
+            --space-xs: 0.5rem;
+            --space-sm: 1rem;
+            --space-md: 1.5rem;
+            --space-lg: 2rem;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --color-bg: #1a1a1a;
+                --color-text: #f5f5f5;
+                --color-border: #333333;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            padding: var(--space-md);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: var(--space-lg);
+            border-bottom: 2px solid var(--color-border);
+            padding-bottom: var(--space-md);
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: var(--space-xs);
+        }
+
+        .tagline {
+            font-size: 0.95rem;
+            color: #666;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .tagline {
+                color: #aaa;
+            }
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg);
+            margin-top: var(--space-lg);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-section {
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 0.5rem;
+            padding: var(--space-md);
+        }
+
+        .form-section h2 {
+            font-size: 1.3rem;
+            margin-bottom: var(--space-md);
+        }
+
+        label {
+            display: block;
+            margin-top: var(--space-md);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--color-border);
+            border-radius: 0.25rem;
+            font-size: 1rem;
+            font-family: inherit;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--color-focus);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .checkbox-group {
+            margin-top: var(--space-sm);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-weight: 400;
+        }
+
+        input[type="checkbox"] {
+            width: 1.25rem;
+            height: 1.25rem;
+            margin-right: 0.5rem;
+            cursor: pointer;
+            accent-color: var(--color-focus);
+        }
+
+        input[type="checkbox"]:focus {
+            outline: 2px solid var(--color-focus);
+            outline-offset: 2px;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.875rem;
+            background-color: var(--color-focus);
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: var(--space-md);
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:focus {
+            outline: 2px solid var(--color-focus);
+            outline-offset: 2px;
+        }
+
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .results-section {
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 0.5rem;
+            padding: var(--space-md);
+            min-height: 400px;
+        }
+
+        .results-section h2 {
+            font-size: 1.3rem;
+            margin-bottom: var(--space-md);
+        }
+
+        .aqi-display {
+            margin-bottom: var(--space-lg);
+            padding: var(--space-md);
+            border-radius: 0.5rem;
+            border-left: 4px solid var(--color-focus);
+        }
+
+        .aqi-display.good {
+            background-color: rgba(46, 204, 113, 0.1);
+            border-left-color: var(--color-good);
+        }
+
+        .aqi-display.moderate {
+            background-color: rgba(243, 156, 18, 0.1);
+            border-left-color: var(--color-moderate);
+        }
+
+        .aqi-display.sensitive {
+            background-color: rgba(231, 76, 60, 0.1);
+            border-left-color: var(--color-sensitive);
+        }
+
+        .aqi-display.unhealthy {
+            background-color: rgba(155, 89, 182, 0.1);
+            border-left-color: var(--color-unhealthy);
+        }
+
+        .aqi-display.hazardous {
+            background-color: rgba(52, 73, 94, 0.1);
+            border-left-color: var(--color-hazardous);
+        }
+
+        .aqi-band {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .aqi-pm25 {
+            font-size: 0.95rem;
+            color: #666;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .aqi-pm25 {
+                color: #aaa;
+            }
+        }
+
+        .risk-score {
+            margin-top: var(--space-sm);
+            font-weight: 600;
+        }
+
+        .best-window {
+            background-color: rgba(52, 152, 219, 0.05);
+            border: 1px dashed var(--color-border);
+            padding: var(--space-sm);
+            border-radius: 0.25rem;
+            margin-bottom: var(--space-md);
+        }
+
+        .best-window strong {
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .advice-section {
+            margin-bottom: var(--space-lg);
+        }
+
+        .advice-section h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            margin-top: var(--space-md);
+        }
+
+        .advice-section p {
+            margin-bottom: 0.5rem;
+        }
+
+        .alternatives-list {
+            list-style-position: inside;
+            margin-left: var(--space-sm);
+        }
+
+        .alternatives-list li {
+            margin-bottom: 0.5rem;
+            padding-left: 0.5rem;
+        }
+
+        .actions-list {
+            background-color: rgba(46, 204, 113, 0.05);
+            border-left: 3px solid var(--color-good);
+            padding: var(--space-sm);
+            border-radius: 0.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .actions-list li {
+            margin-bottom: 0.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .loading {
+                color: #aaa;
+            }
+        }
+
+        .error {
+            background-color: rgba(231, 76, 60, 0.1);
+            border-left: 3px solid var(--color-sensitive);
+            padding: var(--space-sm);
+            border-radius: 0.25rem;
+            color: var(--color-sensitive);
+            margin-bottom: var(--space-md);
+            role: alert;
+        }
+
+        .success {
+            background-color: rgba(46, 204, 113, 0.1);
+            border-left: 3px solid var(--color-good);
+            padding: var(--space-sm);
+            border-radius: 0.25rem;
+            color: var(--color-good);
+            margin-bottom: var(--space-md);
+        }
+
+        .aria-live-region {
+            position: absolute;
+            left: -10000px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+
+        footer {
+            margin-top: var(--space-lg);
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--color-border);
+            font-size: 0.9rem;
+            color: #666;
+            text-align: center;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            footer {
+                color: #aaa;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Urban Air Quality Assistant</h1>
+        <p class="tagline">Navigate severe winter smog with AI-powered, personalized guidance for your family</p>
+    </header>
+
+    <div class="container">
+        <!-- Input Form -->
+        <div class="form-section">
+            <h2>Tell Us About Your Situation</h2>
+
+            <form id="adviceForm">
+                <label for="city">City <span aria-label="required">*</span></label>
+                <input 
+                    type="text" 
+                    id="city" 
+                    name="city" 
+                    placeholder="e.g., Delhi, Bengaluru" 
+                    required
+                    aria-describedby="city-help"
+                >
+                <small id="city-help">Enter your city name</small>
+
+                <fieldset>
+                    <legend>Vulnerable Groups in Your Household</legend>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="vulnerable_groups" value="children">
+                            Children (0–12 years)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="vulnerable_groups" value="elderly">
+                            Elderly (60+ years)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="vulnerable_groups" value="respiratory_conditions">
+                            Respiratory conditions (asthma, etc.)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="vulnerable_groups" value="cardiac_conditions">
+                            Cardiac conditions (heart disease, etc.)
+                        </label>
+                    </div>
+                </fieldset>
+
+                <label for="commute">Commute Mode</label>
+                <select id="commute" name="commute_mode">
+                    <option value="car">Car</option>
+                    <option value="public_transit">Public Transit (Bus/Metro)</option>
+                    <option value="cycle">Cycle/Motorcycle</option>
+                    <option value="walk">Walk</option>
+                </select>
+
+                <label for="outdoor">Outdoor Activity Frequency</label>
+                <select id="outdoor" name="outdoor_habits">
+                    <option value="low">Low (mostly indoors)</option>
+                    <option value="moderate">Moderate (1–2 hours daily)</option>
+                    <option value="high">High (3+ hours daily)</option>
+                </select>
+
+                <label for="cooking">Cooking Fuel</label>
+                <select id="cooking" name="cooking_fuel">
+                    <option value="lpg">LPG/Gas</option>
+                    <option value="induction">Induction</option>
+                    <option value="wood">Wood/Biomass</option>
+                    <option value="charcoal">Charcoal</option>
+                </select>
+
+                <label for="ventilation">Home Ventilation</label>
+                <select id="ventilation" name="home_ventilation">
+                    <option value="basic">Basic (windows only)</option>
+                    <option value="air_purifier">HEPA Air Purifier</option>
+                    <option value="natural">Natural airflow</option>
+                </select>
+
+                <button type="submit">Get Personalized Advice</button>
+            </form>
+        </div>
+
+        <!-- Results Display -->
+        <div class="results-section" role="region" aria-live="polite" aria-label="Air Quality Advice Results">
+            <h2>Your Personalized Guidance</h2>
+            <div id="results">
+                <p class="loading">Fill in your details and click "Get Personalized Advice" to see recommendations.</p>
+            </div>
+            <div id="liveRegion" class="aria-live-region" aria-live="assertive" aria-atomic="true"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Data from Open-Meteo Air Quality API. Guidance powered by Google Gemini and health research.</p>
+        <p>Always consult healthcare providers for medical concerns. This tool provides guidance only.</p>
+    </footer>
+
+    <script>
+        const form = document.getElementById('adviceForm');
+        const resultsDiv = document.getElementById('results');
+        const liveRegion = document.getElementById('liveRegion');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            resultsDiv.innerHTML = '<p class="loading">Loading your personalized guidance...</p>';
+
+            const formData = new FormData(form);
+            const city = formData.get('city');
+            const vulnerable_groups = formData.getAll('vulnerable_groups');
+            const commute_mode = formData.get('commute_mode');
+            const outdoor_habits = formData.get('outdoor_habits');
+            const cooking_fuel = formData.get('cooking_fuel');
+            const home_ventilation = formData.get('home_ventilation');
+
+            try {
+                const response = await fetch('/api/advice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        city,
+                        vulnerable_groups,
+                        commute_mode,
+                        outdoor_habits,
+                        cooking_fuel,
+                        home_ventilation,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to get advice');
+                }
+
+                const data = await response.json();
+                displayResults(data);
+                liveRegion.textContent = `Advice generated for ${data.location}. AQI band: ${data.aqi_band}. Risk score: ${data.risk_score}/100.`;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error" role="alert"><strong>Error:</strong> ${error.message}</div>`;
+                liveRegion.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        function displayResults(data) {
+            const bandClass = getBandClass(data.aqi_band);
+            let html = `
+                <div class="aqi-display ${bandClass}">
+                    <div class="aqi-band">${data.aqi_band}</div>
+                    <div class="aqi-pm25">PM2.5: ${data.best_activity_window.pm25?.toFixed(1) || 'N/A'} µg/m³</div>
+                    <div class="risk-score">Your household risk score: <strong>${data.risk_score}/100</strong></div>
+                </div>
+            `;
+
+            if (data.best_activity_window && data.best_activity_window.best_hour !== null) {
+                html += `
+                    <div class="best-window" role="complementary">
+                        <strong>Best Time for Outdoor Activity</strong>
+                        <p><strong>Hour ${data.best_activity_window.best_hour}:00 UTC</strong></p>
+                        <p>${data.best_activity_window.rationale}</p>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="advice-section">
+                    <h3>Health Summary</h3>
+                    <p>${data.health_summary}</p>
+                </div>
+
+                <div class="advice-section">
+                    <h3>Recommended Routine</h3>
+                    <p>${data.recommended_routine}</p>
+                </div>
+
+                <div class="advice-section">
+                    <h3>Sustainable Alternatives</h3>
+                    <ul class="alternatives-list">
+                        ${data.sustainable_alternatives.map(alt => `<li>${alt}</li>`).join('')}
+                    </ul>
+                </div>
+
+                <div class="advice-section">
+                    <h3>Immediate Actions (Next 2–4 Hours)</h3>
+                    <ul class="actions-list">
+                        ${data.immediate_actions.map(action => `<li>${action}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function getBandClass(band) {
+            const mapping = {
+                'Good': 'good',
+                'Moderate': 'moderate',
+                'Unhealthy for Sensitive Groups': 'sensitive',
+                'Unhealthy': 'unhealthy',
+                'Very Unhealthy': 'unhealthy',
+                'Hazardous': 'hazardous',
+            };
+            return mapping[band] || 'good';
+        }
+    </script>
+</body>
+</html>
