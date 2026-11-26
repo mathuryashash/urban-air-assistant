@@ -43,6 +43,7 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
+
 # Security headers middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -60,6 +61,7 @@ async def add_security_headers(request: Request, call_next):
 # Pydantic models
 class LocationRequest(BaseModel):
     """Request to geocode a city."""
+
     city: str = Field(..., min_length=1, max_length=100)
 
     @field_validator("city")
@@ -73,6 +75,7 @@ class LocationRequest(BaseModel):
 
 class LocationResponse(BaseModel):
     """Response with geocoded location."""
+
     name: str
     latitude: float
     longitude: float
@@ -81,12 +84,14 @@ class LocationResponse(BaseModel):
 
 class ForecastRequest(BaseModel):
     """Request for air quality forecast."""
+
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
 
 
 class AirQualityResponse(BaseModel):
     """Current air quality snapshot."""
+
     pm25: float
     pm10: float
     us_aqi: float
@@ -96,10 +101,13 @@ class AirQualityResponse(BaseModel):
 
 class AdviceRequest(BaseModel):
     """Request for personalized air quality guidance."""
+
     city: str = Field(..., min_length=1, max_length=100)
     latitude: float | None = Field(None, ge=-90, le=90)
     longitude: float | None = Field(None, ge=-180, le=180)
-    vulnerable_groups: list[str] = Field(default_factory=list)  # 'children', 'elderly', 'respiratory', 'cardiac'
+    vulnerable_groups: list[str] = Field(
+        default_factory=list
+    )  # 'children', 'elderly', 'respiratory', 'cardiac'
     commute_mode: str = Field(default="car", pattern="^(car|public_transit|cycle|walk)$")
     outdoor_habits: str = Field(default="moderate", pattern="^(low|moderate|high)$")
     cooking_fuel: str = Field(default="lpg", pattern="^(lpg|induction|wood|charcoal)$")
@@ -116,6 +124,7 @@ class AdviceRequest(BaseModel):
 
 class AdviceResponse(BaseModel):
     """Personalized guidance response."""
+
     location: str
     aqi_band: str
     risk_score: int
@@ -194,9 +203,7 @@ async def get_advice(request: AdviceRequest):
     # Fetch AQ data
     aq_result = await aqi.fetch_air_quality(request.latitude, request.longitude)
     if not aq_result:
-        raise HTTPException(
-            status_code=503, detail="Unable to fetch air quality data"
-        )
+        raise HTTPException(status_code=503, detail="Unable to fetch air quality data")
 
     current, hourly = aq_result
 
@@ -217,9 +224,7 @@ async def get_advice(request: AdviceRequest):
     activity = core.ActivityType.OUTDOOR_EXERCISE
     if request.commute_mode != "walk":
         activity = core.ActivityType.COMMUTE
-    best_window = core.find_best_activity_window(
-        [h.model_dump() for h in hourly], activity
-    )
+    best_window = core.find_best_activity_window([h.model_dump() for h in hourly], activity)
 
     # Estimate impact of potential changes
     impact_data = {}
@@ -235,9 +240,7 @@ async def get_advice(request: AdviceRequest):
         }
 
     if request.cooking_fuel != "induction":
-        impact = core.estimate_impact(
-            "switch_to_cooking_fuel", {"frequency_days_per_week": 7}
-        )
+        impact = core.estimate_impact("switch_to_cooking_fuel", {"frequency_days_per_week": 7})
         impact_data["cooking_switch"] = {
             "co2_kg_saved": impact.co2_kg_saved,
             "exposure_reduction_percent": impact.exposure_reduction_percent,

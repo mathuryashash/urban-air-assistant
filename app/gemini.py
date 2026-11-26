@@ -16,14 +16,13 @@ logger = logging.getLogger(__name__)
 
 class RoutineAdvice(BaseModel):
     """Structured response from Gemini or fallback template."""
+
     health_summary: str = Field(..., description="Plain-language health risk summary")
     recommended_routine: str = Field(..., description="Daily routine tailored to current AQI")
     sustainable_alternatives: list[str] = Field(
         ..., description="List of behavior/product alternatives"
     )
-    immediate_actions: list[str] = Field(
-        ..., description="Actions to take now (next 2–4 hours)"
-    )
+    immediate_actions: list[str] = Field(..., description="Actions to take now (next 2–4 hours)")
 
 
 def get_fallback_routine(aqi_band: str, risk_score: int) -> RoutineAdvice:

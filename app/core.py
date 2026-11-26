@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class AQIBand(Enum):
     """AQI severity bands based on US EPA breakpoints for PM2.5."""
+
     GOOD = "Good"
     MODERATE = "Moderate"
     UNHEALTHY_FOR_SENSITIVE = "Unhealthy for Sensitive Groups"
@@ -25,6 +26,7 @@ class AQIBand(Enum):
 
 class VulnerabilityGroup(Enum):
     """Vulnerable populations with elevated health risk in poor AQ."""
+
     CHILDREN = "children"
     ELDERLY = "elderly"
     RESPIRATORY = "respiratory_conditions"
@@ -33,6 +35,7 @@ class VulnerabilityGroup(Enum):
 
 class ActivityType(Enum):
     """Types of outdoor activities for which optimal timing is forecast."""
+
     OUTDOOR_EXERCISE = "outdoor_exercise"
     COMMUTE = "commute"
     VENTILATION = "home_ventilation"
@@ -40,6 +43,7 @@ class ActivityType(Enum):
 
 class ImpactEstimate(NamedTuple):
     """Quantified impact of a behavior change."""
+
     co2_kg_saved: float
     exposure_reduction_percent: float
     rationale: str  # Cited source/assumptions
@@ -116,9 +120,7 @@ def assess_health_risk(band: AQIBand, vulnerability: VulnerabilityGroup) -> int:
     return risk
 
 
-def find_best_activity_window(
-    hourly_forecast: list[dict], activity_type: ActivityType
-) -> dict:
+def find_best_activity_window(hourly_forecast: list[dict], activity_type: ActivityType) -> dict:
     """
     Find the optimal time window (next 24h) for outdoor activity, commute, or ventilation.
 
@@ -160,9 +162,7 @@ def find_best_activity_window(
     threshold = thresholds.get(activity_type, 55.4)
 
     # Find hours within threshold
-    suitable_hours = [
-        h for h in hourly_forecast if h.get("pm25", 0) <= threshold
-    ]
+    suitable_hours = [h for h in hourly_forecast if h.get("pm25", 0) <= threshold]
 
     if suitable_hours:
         best = min(suitable_hours, key=lambda h: h.get("pm25", 0))

@@ -12,7 +12,7 @@ Run: pytest --cov=app --cov-report=html
 
 import json
 from datetime import datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -78,7 +78,9 @@ class TestHealthRiskAssessment:
     def test_assess_health_risk_respiratory_condition(self):
         """Respiratory condition at Moderate should have higher multiplier."""
         risk_base = core.assess_health_risk(core.AQIBand.MODERATE, core.VulnerabilityGroup.CHILDREN)
-        risk_resp = core.assess_health_risk(core.AQIBand.MODERATE, core.VulnerabilityGroup.RESPIRATORY)
+        risk_resp = core.assess_health_risk(
+            core.AQIBand.MODERATE, core.VulnerabilityGroup.RESPIRATORY
+        )
         assert risk_resp > risk_base
 
     def test_assess_health_risk_maximum_capped(self):
@@ -88,8 +90,12 @@ class TestHealthRiskAssessment:
 
     def test_assess_health_risk_elderly(self):
         """Elderly should have elevated risk similar to children."""
-        risk_child = core.assess_health_risk(core.AQIBand.MODERATE, core.VulnerabilityGroup.CHILDREN)
-        risk_elderly = core.assess_health_risk(core.AQIBand.MODERATE, core.VulnerabilityGroup.ELDERLY)
+        risk_child = core.assess_health_risk(
+            core.AQIBand.MODERATE, core.VulnerabilityGroup.CHILDREN
+        )
+        risk_elderly = core.assess_health_risk(
+            core.AQIBand.MODERATE, core.VulnerabilityGroup.ELDERLY
+        )
         assert abs(risk_child - risk_elderly) <= 5  # Roughly equal (both 1.3x)
 
 
@@ -177,6 +183,20 @@ class TestImpactEstimation:
         impact = core.estimate_impact("switch_to_public_transit", {"distance_km": 15})
         assert len(impact.rationale) > 10
 
+    @pytest.mark.asyncio
+    @patch("app.aqi.httpx.AsyncClient")
+    async def test_geocode_city_network_error(self, mock_client_class):
+        """Handle network error during geocoding."""
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=Exception("Network error"))
+
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        aqi.clear_cache()
+        result = await aqi.geocode_city("Delhi")
+        assert result is None
+
 
 # =============================================================================
 # TESTS FOR AQI DATA FETCHING (aqi.py)
@@ -187,10 +207,10 @@ class TestGeocoding:
     """Tests for city geocoding."""
 
     @pytest.mark.asyncio
-    @patch('app.aqi.httpx.AsyncClient')
-    async def test_geocode_city_success(self, mock_client):
+    @patch("app.aqi.httpx.AsyncClient")
+    async def test_geocode_city_success(self, mock_client_class):
         """Successfully geocode a city."""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {
             "results": [
                 {
@@ -203,11 +223,21 @@ class TestGeocoding:
                 }
             ]
         }
-        mock_response.raise_for_status = AsyncMock()
+        mock_response.raise_for_status = MagicMock()
 
-        mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-            return_value=mock_response
-        )
+        async def mock_get(*args, **kwargs):
+            return mock_response
+
+        # Create a mock client that works as async context manager
+        mock_client = MagicMock()
+        mock_client.get = mock_get
+
+        # Setup AsyncClient to return a proper async context manager
+        async def async_context_manager():
+            return mock_client
+
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
 
         aqi.clear_cache()
         result = await aqi.geocode_city("Delhi")
@@ -216,16 +246,22 @@ class TestGeocoding:
         assert result.longitude == 77.1025
 
     @pytest.mark.asyncio
-    @patch('app.aqi.httpx.AsyncClient')
-    async def test_geocode_city_not_found(self, mock_client):
+    @patch("app.aqi.httpx.AsyncClient")
+    async def test_geocode_city_not_found(self, mock_client_class):
         """Handle city not found."""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"results": []}
-        mock_response.raise_for_status = AsyncMock()
+        mock_response.raise_for_status = MagicMock()
 
-        mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-            return_value=mock_response
-        )
+        async def mock_get(*args, **kwargs):
+            return mock_response
+
+        # Create a mock client that works as async context manager
+        mock_client = MagicMock()
+        mock_client.get = mock_get
+
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
 
         aqi.clear_cache()
         result = await aqi.geocode_city("UnknownCity123")
@@ -234,8 +270,8 @@ class TestGeocoding:
     @pytest.mark.asyncio
     async def test_geocode_city_cache(self):
         """Geocoding results should be cached."""
-        with patch('app.aqi.httpx.AsyncClient') as mock_client:
-            mock_response = AsyncMock()
+        with patch("app.aqi.httpx.AsyncClient") as mock_client_class:
+            mock_response = MagicMock()
             mock_response.json.return_value = {
                 "results": [
                     {
@@ -246,11 +282,21 @@ class TestGeocoding:
                     }
                 ]
             }
-            mock_response.raise_for_status = AsyncMock()
+            mock_response.raise_for_status = MagicMock()
 
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
+            call_count = 0
+
+            async def mock_get(*args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                return mock_response
+
+            # Create a mock client that works as async context manager
+            mock_client = MagicMock()
+            mock_client.get = mock_get
+
+            mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
 
             aqi.clear_cache()
             result1 = await aqi.geocode_city("Bengaluru")
@@ -258,7 +304,57 @@ class TestGeocoding:
 
             assert result1 == result2
             # Should only call API once (cached second time)
-            assert mock_client.return_value.__aenter__.return_value.get.call_count == 1
+            assert call_count == 1
+
+    @pytest.mark.asyncio
+    @patch("app.aqi.httpx.AsyncClient")
+    async def test_fetch_air_quality_success(self, mock_client_class):
+        """Successfully fetch air quality data."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "current": {
+                "pm2_5": 25.0,
+                "pm10": 50.0,
+                "us_aqi": 70.0,
+                "time": "2024-11-26T12:00Z",
+            },
+            "hourly": {
+                "time": ["2024-11-26T12:00Z", "2024-11-26T13:00Z"],
+                "pm2_5": [25.0, 30.0],
+                "pm10": [50.0, 55.0],
+            },
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        async def mock_get(*args, **kwargs):
+            return mock_response
+
+        mock_client = MagicMock()
+        mock_client.get = mock_get
+
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        aqi.clear_cache()
+        result = await aqi.fetch_air_quality(28.7, 77.1)
+        assert result is not None
+        current, hourly = result
+        assert current.pm25 == 25.0
+        assert len(hourly) == 2
+
+    @pytest.mark.asyncio
+    @patch("app.aqi.httpx.AsyncClient")
+    async def test_fetch_air_quality_network_error(self, mock_client_class):
+        """Handle network error during air quality fetch."""
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=Exception("Network error"))
+
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        aqi.clear_cache()
+        result = await aqi.fetch_air_quality(28.7, 77.1)
+        assert result is None
 
 
 # =============================================================================
@@ -302,10 +398,10 @@ class TestGeminiIntegration:
         assert isinstance(routine.sustainable_alternatives, list)
 
     @pytest.mark.asyncio
-    @patch('app.gemini.httpx.AsyncClient')
-    async def test_generate_routine_with_gemini_success(self, mock_client):
+    @patch("app.gemini.httpx.AsyncClient")
+    async def test_generate_routine_with_gemini_success(self, mock_client_class):
         """Successfully generate routine with Gemini."""
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {
             "candidates": [
                 {
@@ -326,11 +422,17 @@ class TestGeminiIntegration:
                 }
             ]
         }
-        mock_response.raise_for_status = AsyncMock()
+        mock_response.raise_for_status = MagicMock()
 
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
-        )
+        async def mock_post(*args, **kwargs):
+            return mock_response
+
+        # Create a mock client that works as async context manager
+        mock_client = MagicMock()
+        mock_client.post = mock_post
+
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
 
         routine = await gemini.generate_routine_with_gemini(
             aqi_band="Moderate",
@@ -343,12 +445,15 @@ class TestGeminiIntegration:
         assert routine.health_summary == "Air quality is moderate."
 
     @pytest.mark.asyncio
-    @patch('app.gemini.httpx.AsyncClient')
-    async def test_generate_routine_gemini_failure_fallback(self, mock_client):
+    @patch("app.gemini.httpx.AsyncClient")
+    async def test_generate_routine_gemini_failure_fallback(self, mock_client_class):
         """Gemini failure should fall back to template."""
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            side_effect=Exception("API error")
-        )
+        # Create a mock client that works as async context manager
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(side_effect=Exception("API error"))
+
+        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
 
         routine = await gemini.generate_routine_with_gemini(
             aqi_band="Good",
@@ -372,7 +477,8 @@ class TestAPIEndpoints:
     @pytest.fixture
     def client(self):
         """FastAPI test client."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
+
         return TestClient(main.app)
 
     def test_health_check(self, client):
@@ -383,7 +489,7 @@ class TestAPIEndpoints:
         assert data["status"] == "ok"
         assert "timestamp" in data
 
-    @patch('app.aqi.geocode_city')
+    @patch("app.aqi.geocode_city")
     def test_location_endpoint_success(self, mock_geocode, client):
         """Geocode location endpoint."""
         mock_geocode.return_value = aqi.GeocodingResult(
@@ -399,7 +505,7 @@ class TestAPIEndpoints:
         assert data["name"] == "Delhi"
         assert data["latitude"] == 28.7041
 
-    @patch('app.aqi.geocode_city')
+    @patch("app.aqi.geocode_city")
     def test_location_endpoint_not_found(self, mock_geocode, client):
         """Location not found."""
         mock_geocode.return_value = None
@@ -412,7 +518,7 @@ class TestAPIEndpoints:
         response = client.post("/api/location", json={"city": "Delhi'; DROP TABLE--"})
         assert response.status_code == 422  # Validation error
 
-    @patch('app.aqi.fetch_air_quality')
+    @patch("app.aqi.fetch_air_quality")
     def test_forecast_endpoint(self, mock_fetch, client):
         """Forecast endpoint."""
         current = aqi.AirQualityData(
@@ -421,9 +527,7 @@ class TestAPIEndpoints:
         hourly = [aqi.HourlyForecast(hour=0, pm25=20.0, pm10=40.0)]
         mock_fetch.return_value = (current, hourly)
 
-        response = client.post(
-            "/api/forecast", json={"latitude": 28.7041, "longitude": 77.1025}
-        )
+        response = client.post("/api/forecast", json={"latitude": 28.7041, "longitude": 77.1025})
         assert response.status_code == 200
         data = response.json()
         assert data["pm25"] == 25.0
@@ -441,9 +545,9 @@ class TestAPIEndpoints:
         )
         assert response.status_code == 422
 
-    @patch('app.aqi.geocode_city')
-    @patch('app.aqi.fetch_air_quality')
-    @patch('app.gemini.generate_routine_with_gemini')
+    @patch("app.aqi.geocode_city")
+    @patch("app.aqi.fetch_air_quality")
+    @patch("app.gemini.generate_routine_with_gemini")
     def test_advice_endpoint_success(self, mock_routine, mock_fetch, mock_geocode, client):
         """Advice endpoint integration test."""
         mock_geocode.return_value = aqi.GeocodingResult(

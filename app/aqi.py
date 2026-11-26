@@ -23,6 +23,7 @@ CACHE_TTL_SECONDS = 3600  # 1 hour for AQI; 86400 (24h) for geocoding
 
 class GeocodingResult(BaseModel):
     """Geocoding result from Open-Meteo."""
+
     name: str
     latitude: float
     longitude: float
@@ -33,6 +34,7 @@ class GeocodingResult(BaseModel):
 
 class AirQualityData(BaseModel):
     """Current and hourly air quality data."""
+
     pm25: float = Field(..., description="PM2.5 in µg/m³")
     pm10: float = Field(..., description="PM10 in µg/m³")
     us_aqi: float = Field(..., description="US AQI scale (0–500+)")
@@ -42,6 +44,7 @@ class AirQualityData(BaseModel):
 
 class HourlyForecast(BaseModel):
     """Hourly forecast for air quality."""
+
     hour: int = Field(..., description="Hour 0–23 UTC")
     pm25: float = Field(..., description="PM2.5 µg/m³")
     pm10: float = Field(..., description="PM10 µg/m³")
