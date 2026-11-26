@@ -125,8 +125,8 @@ uvicorn app.main:app --reload --port 8000
 ### Docker Build & Test
 ```bash
 docker build -t urban-air-assistant .
-docker run -p 8000:8000 -e PORT=8000 urban-air-assistant
-# Visit http://localhost:8000
+docker run -p 8080:8080 --env-file .env urban-air-assistant
+# Visit http://localhost:8080 (the container listens on $PORT, 8080 by default, like Cloud Run)
 ```
 
 ### Cloud Run Deployment (via gcloud CLI)
@@ -136,8 +136,11 @@ docker run -p 8000:8000 -e PORT=8000 urban-air-assistant
 # - GCP project with Cloud Run API enabled
 # - Gemini API key in Secret Manager
 
-# Create secret
-echo $GEMINI_API_KEY | gcloud secrets create GEMINI_API_KEY --data-file=-
+# Create the secret and let the Cloud Run runtime service account read it
+printf %s "$GEMINI_API_KEY" | gcloud secrets create GEMINI_API_KEY --data-file=-
+gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
+  --member="serviceAccount:$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')-compute@developer.gserviceaccount.com" \
+  --role=roles/secretmanager.secretAccessor
 
 # Deploy
 gcloud run deploy urban-air-assistant \
@@ -145,15 +148,16 @@ gcloud run deploy urban-air-assistant \
   --platform managed \
   --region asia-south1 \
   --allow-unauthenticated \
-  --set-env-vars PORT=8000 \
+  --set-env-vars GEMINI_MODEL=gemini-3.1-flash-lite \
   --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest
+# Cloud Run sets PORT itself; don't pass it.
 ```
 
 ## Assumptions
 
 1. **Location Data**: User provides city name or lat/lon; app does not store location history
 2. **Health Data**: Vulnerability groups (children, elderly, respiratory, cardiac) are user-selected, not auto-detected
-3. **Air Quality API**: Open-Meteo remains free and accessible; fallback to cached data if unavailable
+3. **Air Quality API**: Open-Meteo stays free and reachable. Responses are cached for an hour; if Open-Meteo is down and nothing is cached, the API returns 503 instead of guessing
 4. **Gemini Availability**: API key valid; model comes from `GEMINI_MODEL` (default `gemini-3.1-flash-lite`); fallback template used if key fails
 5. **Indian Cities**: AQI guidance targets major Indian cities; emission factors are regional
 6. **No Real-Time Health Monitoring**: App provides guidance only; not a medical device
